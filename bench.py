@@ -98,7 +98,7 @@ else:
     # simple benchmarking
     torch.cuda.synchronize()
     for stage, num_steps in enumerate([10, 20]): # burnin, then benchmark
-        t0 = time.time()
+        t0 = time.perf_counter_ns()
         X, Y = get_batch('train')
         for k in range(num_steps):
             with ctx:
@@ -110,8 +110,8 @@ else:
             lossf = loss.item()
             print(f"{k}/{num_steps} loss: {lossf:.4f}")
         torch.cuda.synchronize()
-        t1 = time.time()
-        dt = t1-t0
-        mfu = model.estimate_mfu(batch_size * 1 * num_steps, dt)
+        t1 = time.perf_counter_ns()
+        dt_ns = t1-t0
+        mfu = model.estimate_mfu(batch_size * 1 * num_steps, dt_ns)
         if stage == 1:
-            print(f"time per iteration: {dt/num_steps*1000:.4f}ms, MFU: {mfu*100:.2f}%")
+            print(f"time per iteration: {dt_ns/num_steps/1e6:.4f}ms, MFU: {mfu*100:.2f}%")
