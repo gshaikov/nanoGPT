@@ -10,6 +10,7 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 import math
 import inspect
 from dataclasses import dataclass
+import subprocess
 
 import torch
 import torch.nn as nn
@@ -298,8 +299,8 @@ class GPT(nn.Module):
         flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
         # express our flops throughput as ratio of A100 bfloat16 peak flops
         flops_achieved = flops_per_iter // dt_ns # per nano-second
-        flops_promised = 312_000 # A100 GPU bfloat16 peak flop/ns is 312 TFLOPS
-        mfu = flops_achieved / flops_promised
+        flops_promised = MAX_FLOP_NS
+        mfu = flops_achieved / flops_promised if flops_promised else 0
         return mfu
 
     @torch.no_grad()
@@ -328,3 +329,22 @@ class GPT(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1)
 
         return idx
+
+
+def get_gpu_name():
+    out = subprocess.run(["nvidia-smi", "--query-gpu", "name"], capture_output=True)
+    return out.stdout.decode("UTF-8")
+
+
+def get_gpu_flop_ns():
+    match (name := get_gpu_name()).split('\n'):
+        # flop/ns with bf16/fp16 and fp32 accumulate
+        case [_, "NVIDIA GeForce RTX 5090", *_]:
+            return 209_500
+        case [_, "NVIDIA A100 80GB PCIe", *_]:
+            return 312_000
+        case _:
+            print(f"ERROR: unknown output from nvidia-smi: '{name}'.")
+            return None
+
+MAX_FLOP_NS = get_gpu_flop_ns()
